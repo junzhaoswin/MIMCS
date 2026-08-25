@@ -1,0 +1,23 @@
+# DBLP DBLP_3T_S1 — frozen gamma=2 configuration
+# types ['paper', 'author', 'venue'] = [0, 1, 2]; target venue (2)
+# minimum-dispersion ladder at gamma=2: effective average 2.00 over 4 directed constraints; all directions explicit
+# meta-paths: ['0,2', '1,0,2'] + target-self [2, 0, 2]
+constraint 0 1 2
+constraint 1 0 2
+constraint 0 2 2
+constraint 2 0 2
+AS 0,1,2
+target_type 2
+gamma_mode metapath
+gamma_path 0,2
+gamma_path 1,0,2
+gt_mode proj2
+gt_middle 0
+ic_model wc
+budget 100
+rr1 5000
+rr2 5000
+delta 0.1
+ball_hops 2
+ball_cap 400
+minimize_passes 3

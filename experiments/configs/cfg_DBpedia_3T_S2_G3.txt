@@ -1,0 +1,23 @@
+# DBpedia DBpedia_3T_S2 — frozen gamma=3 configuration
+# types ['type_0', 'type_35', 'type_303'] = [0, 35, 303]; target type_35 (35)
+# minimum-dispersion ladder at gamma=3: effective average 3.00 over 4 directed constraints; all directions explicit
+# meta-paths: ['0,35', '303,13,35'] + target-self [35, 0, 35]
+constraint 0 35 5
+constraint 35 0 1
+constraint 0 303 5
+constraint 303 0 1
+AS 0,35,303
+target_type 35
+gamma_mode metapath
+gamma_path 0,35
+gamma_path 303,13,35
+gt_mode proj2
+gt_middle 0
+ic_model wc
+budget 100
+rr1 5000
+rr2 5000
+delta 0.1
+ball_hops 2
+ball_cap 400
+minimize_passes 3

@@ -1,0 +1,23 @@
+# DBpedia DBpedia_3T_S5 — frozen gamma=5 configuration
+# types ['type_2', 'type_160', 'type_355'] = [2, 160, 355]; target type_355 (355)
+# minimum-dispersion ladder at gamma=5: effective average 5.00 over 4 directed constraints; all directions explicit
+# meta-paths: ['2,355', '160,13,355'] + target-self [355, 412, 355]
+constraint 2 160 1
+constraint 160 2 1
+constraint 2 355 17
+constraint 355 2 1
+AS 2,160,355
+target_type 355
+gamma_mode metapath
+gamma_path 2,355
+gamma_path 160,13,355
+gt_mode proj2
+gt_middle 412
+ic_model wc
+budget 100
+rr1 5000
+rr2 5000
+delta 0.1
+ball_hops 2
+ball_cap 400
+minimize_passes 3

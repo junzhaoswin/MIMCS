@@ -1,0 +1,23 @@
+# DBpedia DBpedia_3T_S4 — frozen gamma=3 configuration
+# types ['type_61', 'type_157', 'type_412'] = [61, 157, 412]; target type_61 (61)
+# minimum-dispersion ladder at gamma=3: effective average 3.00 over 4 directed constraints; all directions explicit
+# meta-paths: ['157,13,61', '412,61'] + target-self [61, 13, 61]
+constraint 61 412 1
+constraint 412 61 5
+constraint 157 412 1
+constraint 412 157 5
+AS 61,157,412
+target_type 61
+gamma_mode metapath
+gamma_path 157,13,61
+gamma_path 412,61
+gt_mode proj2
+gt_middle 13
+ic_model wc
+budget 100
+rr1 5000
+rr2 5000
+delta 0.1
+ball_hops 2
+ball_cap 400
+minimize_passes 3

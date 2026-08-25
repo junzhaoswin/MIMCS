@@ -1,0 +1,23 @@
+# TMDB TMDB_3T_S2 — frozen gamma=6 configuration
+# types ['movie', 'cast', 'keyword'] = [0, 1, 6]; target movie (0)
+# minimum-dispersion ladder at gamma=6: effective average 6.00 over 4 directed constraints; all directions explicit
+# meta-paths: ['1,0', '6,0'] + target-self [0, 5, 0]
+constraint 0 1 10
+constraint 1 0 6
+constraint 0 6 4
+constraint 6 0 4
+AS 0,1,6
+target_type 0
+gamma_mode metapath
+gamma_path 1,0
+gamma_path 6,0
+gt_mode proj2
+gt_middle 5
+ic_model wc
+budget 100
+rr1 5000
+rr2 5000
+delta 0.1
+ball_hops 2
+ball_cap 400
+minimize_passes 3
