@@ -1,15 +1,17 @@
-# Most Influential Multi-type Community Search (MIMCS)
+# Most Influential Multi-type Community Search over Heterogeneous Information Networks
 
-This repository contains the experimental C++ implementation and runtime
-configuration files for the MIMCS research project. It searches a
-heterogeneous information network for a connected, budget-feasible multi-type
-community satisfying typed degree constraints while maximizing RR-set
-influence coverage.
+This repository contains the experimental C++ implementation and configuration
+files for Most Influential Multi-type Community Search (MIMCS) over
+heterogeneous information networks (HINs). Given a query vertex, relational
+constraints, a target vertex type, vertex costs, and a budget, MIMCS finds a
+connected multi-type community containing the query that maximizes the
+collective propagation influence over the target vertex type.
 
 The public solver exposes two query-conditioned exact algorithms:
 
-- `baseline_enum`: MIMC-Enum.
-- `advanced_full`: MIMC-B&B / Advanced-Full.
+- `baseline_enum`: **Exhaustive Search**, the exact enumeration baseline.
+- `advanced_full`: **MIMC-B&B**, equipped with completion-cost reduction,
+  completion-aware influence bounding, and deficit-guided branching.
 
 Author and citation information will be added later.
 
@@ -18,7 +20,7 @@ Author and citation information will be added later.
 ```text
 CMakeLists.txt          C++17 build configuration
 src/mimc_lift.cpp      experimental implementation
-experiments/configs/   95 runtime configurations used for five datasets
+experiments/configs/   95 experimental configurations for five datasets
 README.md               build, input, and execution instructions
 ```
 
@@ -56,15 +58,16 @@ u_(m-1) v_(m-1)
 
 Vertex IDs are implicit, contiguous, and zero-based. Each of the following
 `m` rows is an undirected edge. Self-loops are ignored and duplicate edges are
-deduplicated. The experimental node-cost rule is `1 + log1p(degree)`.
+deduplicated. The experimental node-cost rule is
+`c(v) = 1 + ln(1 + d(v))`.
 
 ## Configuration
 
 Configuration files accept either `key value` or `key=value`; `#` begins a
-comment. Important fields include repeatable typed constraints, the allowed
+comment. Important fields include repeatable relational constraints, the allowed
 type set, target type, meta-paths, influence model, budget, RR-set counts, and
-ball parameters. The files in `experiments/configs/` are the released runtime
-configurations for DBLP, IMDb, TMDB, DBpedia, and PubMed.
+ball parameters. The files in `experiments/configs/` are the released experimental
+configurations for DBLP, IMDB, TMDB, DBpedia, and PubMed.
 
 Configuration names have the form:
 
@@ -72,8 +75,9 @@ Configuration names have the form:
 cfg_<dataset>_3T_S<setting>_G<gamma>.txt
 ```
 
-They encode three-type settings and constraint levels `gamma=2,3,4,5,6`.
-There are 15 DBLP, 15 IMDb, 25 TMDB, 25 DBpedia, and 15 PubMed configurations.
+They encode three-type settings and constraint-tightness levels
+`gamma=2,3,4,5,6`. There are 15 DBLP, 15 IMDB, 25 TMDB, 25 DBpedia, and 15
+PubMed configurations.
 
 ## Run
 
@@ -85,7 +89,7 @@ First validate a reconstructed graph and configuration:
   --config experiments/configs/cfg_DBLP_3T_S1_G4.txt
 ```
 
-Run MIMC-Enum:
+Run Exhaustive Search:
 
 ```bash
 ./build/mimcs --mode query_exact \
@@ -108,9 +112,9 @@ Run MIMC-B&B:
 Use `--budget B` to override the budget stored in a configuration.
 
 `query_exact=yes` means the query-conditioned search completed and proved the
-reported optimum. If the time limit is reached first, the program reports the
-best feasible incumbent found so far, a certified upper bound, and a gap; that
-return is not a proved optimum.
+reported optimum with respect to the fixed sampled RR collection. If the time
+limit is reached first, the program reports the best feasible incumbent found
+so far, a certified upper bound, and a gap; that return is not a proved optimum.
 
 The graph inputs and query vertices are intentionally not distributed in this
 minimal code release. Users must supply normalized graphs whose zero-based
