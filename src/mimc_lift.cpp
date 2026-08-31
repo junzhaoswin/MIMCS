@@ -1201,11 +1201,10 @@ struct ExactBnB {
         if (tr) ballTruncations++;
         ballSorted = false;       // sorted lazily, only if the walk needs it
     }
-    // valid UB on max covered_1 over feasible supersets of In in the subtree
-    // resNeed/resCredit implement a sound version of the paper's degree-aware
-    // bound UB_deg: any feasible completion must spend >= resNeed on typed
-    // supporters whose total gain is <= resCredit (both from the aggregated
-    // deficit analysis), so free packing only gets beta - resNeed of budget.
+    // Valid UB on max covered_1 over feasible supersets of In in the subtree.
+    // completion_analysis supplies a jointly certified reservation envelope:
+    // every completion has a role assignment costing >= resNeed whose summed
+    // marginal is <= resCredit.  The remaining packing gets beta-resNeed.
     double bound_now(double resNeed = 0, double resCredit = 0) {
         double beta = max(0.0, C.budget - (double)cIn);
         double beta2 = max(0.0, beta - resNeed);
@@ -1512,17 +1511,24 @@ struct ExactBnB {
     //      deficient In vertices, capped by the best single-supporter cover
     //      Dmax_A, forces >= ceil(D_A/Dmax_A) type-A additions from the union
     //      pool; distinct types have disjoint pools, so the costs add.
-    // Returns false to prune. Emits (b)'s reservation for the bound: cost
-    // resNeed with optimistic gain credit resCredit (top marginals per pool).
+    // Returns false to prune.  The reservation is a certified rectangle over
+    // the SAME legal role-assignment family: resNeed is its minimum cost and
+    // resCredit its maximum summed marginal.  Thus every feasible completion
+    // is covered even though the two extrema may use different identities.
     bool completion_analysis(double& resNeed, double& resCredit) {
         resNeed = 0; resCredit = 0;
-        static thread_local vector<double> cheap, pc, pg;
-        static thread_local vector<int> cntW, touched;
+        static thread_local vector<double> cheap;
+        static thread_local vector<int> cntW, touched, nNeed, mNeed;
         static thread_local vector<double> Dm;
         static thread_local vector<vector<int>> pool;
         if ((int)cntW.size() < G.n) cntW.assign(G.n, 0);
-        if ((int)Dm.size() < G.ntypes) { Dm.assign(G.ntypes, 0); pool.assign(G.ntypes, {}); }
-        for (int t = 0; t < G.ntypes; t++) { Dm[t] = 0; pool[t].clear(); }
+        if ((int)Dm.size() < G.ntypes) {
+            Dm.assign(G.ntypes, 0); pool.assign(G.ntypes, {});
+            nNeed.assign(G.ntypes, 0); mNeed.assign(G.ntypes, 0);
+        }
+        for (int t = 0; t < G.ntypes; t++) {
+            Dm[t] = 0; pool[t].clear(); nNeed[t] = 0; mNeed[t] = 0;
+        }
         touched.clear();
         double need1 = 0;
         for (int v : In) {
@@ -1557,7 +1563,6 @@ struct ExactBnB {
             }
             if (defic) need1 = max(need1, Lv);
         }
-        double need2 = 0;
         bool feasible = true;
         for (int t = 0; t < G.ntypes && feasible; t++) {
             if (Dm[t] <= 0) continue;
@@ -1566,11 +1571,7 @@ struct ExactBnB {
             if (dmax == 0) { feasible = false; break; }
             int nA = ((int)(Dm[t] + 0.5) + dmax - 1) / dmax;
             if ((int)pool[t].size() < nA) { feasible = false; break; }
-            pc.clear(); pg.clear();
-            for (int w : pool[t]) { pc.push_back(G.cost[w]); pg.push_back(upperVal(w)); }
-            nth_element(pc.begin(), pc.begin() + (nA - 1), pc.end());
-            nth_element(pg.begin(), pg.begin() + (nA - 1), pg.end(), greater<double>());
-            for (int x = 0; x < nA; x++) { need2 += pc[x]; resCredit += pg[x]; }
+            nNeed[t] = nA;
         }
         // Export pool structure for the covering-knapsack bound;
         // consumed once per node, before any child search runs
@@ -1581,7 +1582,7 @@ struct ExactBnB {
             for (int w : pool[t]) dmax = max(dmax, cntW[w]);
             if (dmax <= 0) continue;
             b0Pools.push_back(pool[t]);
-            b0Need.push_back(((int)(Dm[t] + 0.5) + dmax - 1) / dmax);
+            b0Need.push_back(nNeed[t]);
         }
         // ---- level 2: induced obligations of the forced level-1 picks ------
         // Every type-A level-1 pick w carries residual demands rho_w(B) vs In;
@@ -1595,16 +1596,15 @@ struct ExactBnB {
             static thread_local vector<vector<int>> l2pool;
             if ((int)ind.size() < G.ntypes) { ind.assign(G.ntypes, 0); l2pool.assign(G.ntypes, {}); }
             for (int t = 0; t < G.ntypes; t++) { ind[t] = 0; l2pool[t].clear(); }
-            static thread_local vector<int> l2cnt, l2touch, chg, chtouch;
+            static thread_local vector<int> l2cnt, l2touch;
             if ((int)l2cnt.size() < G.n) l2cnt.assign(G.n, 0);
-            if ((int)chg.size() < G.n) chg.assign(G.n, 0);
-            l2touch.clear(); chtouch.clear();
+            l2touch.clear();
             for (int t = 0; t < G.ntypes; t++) {
                 if (Dm[t] <= 0 || pool[t].empty()) continue;
                 int dmax = 0;
                 for (int w : pool[t]) dmax = max(dmax, cntW[w]);
                 if (dmax <= 0) continue;
-                int nA = ((int)(Dm[t] + 0.5) + dmax - 1) / dmax;
+                int nA = nNeed[t];
                 // rho_min per induced type B over this pool, and level-2 pools
                 static thread_local vector<int> rhoMin;
                 if ((int)rhoMin.size() < G.ntypes) rhoMin.assign(G.ntypes, 0);
@@ -1641,19 +1641,6 @@ struct ExactBnB {
                     if (rhoMin[b2] != INT32_MAX && rhoMin[b2] > 0)
                         ind[b2] += (double)nA * rhoMin[b2];
             }
-            // mark level-1 charged vertices (their costs are already counted)
-            for (int t = 0; t < G.ntypes; t++) {
-                if (Dm[t] <= 0 || pool[t].empty()) continue;
-                int dmax = 0;
-                for (int w : pool[t]) dmax = max(dmax, cntW[w]);
-                if (dmax <= 0) continue;
-                int nA = ((int)(Dm[t] + 0.5) + dmax - 1) / dmax;
-                static thread_local vector<pair<double,int>> pcv;
-                pcv.clear();
-                for (int w : pool[t]) pcv.push_back({G.cost[w], w});
-                nth_element(pcv.begin(), pcv.begin() + (nA - 1), pcv.end());
-                for (int x = 0; x < nA; x++) { chg[pcv[x].second] = 1; chtouch.push_back(pcv[x].second); }
-            }
             for (int b2 = 0; b2 < G.ntypes && feasible; b2++) {
                 if (ind[b2] <= 0) continue;
                 // supply from level-1 type-b2 picks, capped by sharing
@@ -1671,29 +1658,95 @@ struct ExactBnB {
                 }
                 double rem = ind[b2] - served;
                 if (rem <= 0) continue;
-                int mB = (int)((rem + d2 - 1) / d2);
-                // cheapest distinct extras (level-1 charges excluded)
-                static thread_local vector<double> ec;
-                static thread_local vector<pair<double,int>> eg;
-                ec.clear(); eg.clear();
-                for (int u : l2pool[b2])
-                    if (!chg[u]) { ec.push_back(G.cost[u]); eg.push_back({upperVal(u), u}); }
-                if ((int)ec.size() < mB) { feasible = false; break; }
-                nth_element(ec.begin(), ec.begin() + (mB - 1), ec.end());
-                for (int x = 0; x < mB; x++) need2 += ec[x];
-                nth_element(eg.begin(), eg.begin() + (mB - 1), eg.end(),
-                            greater<pair<double,int>>());
-                for (int x = 0; x < mB; x++) resCredit += eg[x].first;
+                mNeed[b2] = (int)((rem + d2 - 1) / d2);
             }
             for (int u : l2touch) l2cnt[u] = 0;
-            for (int u : chtouch) chg[u] = 0;
+
+            // Joint identity pricing.  For each type, partition candidates into
+            // direct-only, overlap, and induced-only groups.  Enumerating how
+            // many overlap vertices take each role avoids prematurely fixing
+            // the cheapest direct identities and then excluding them from the
+            // induced role.  This is a finite combinatorial calculation, not an
+            // LP/MIP relaxation.
+            static thread_local vector<unsigned char> role;
+            static thread_local vector<double> directOnly, both, inducedOnly;
+            static thread_local vector<double> directGain, bothGain, inducedGain;
+            if ((int)role.size() < G.n) role.assign(G.n, 0);
+            double need2 = 0;
+            for (int t = 0; t < G.ntypes && feasible; t++) {
+                int nA = nNeed[t], mA = mNeed[t];
+                if (nA == 0 && mA == 0) continue;
+                for (int u : pool[t]) role[u] |= 1;
+                for (int u : l2pool[t]) role[u] |= 2;
+                directOnly.clear(); both.clear(); inducedOnly.clear();
+                directGain.clear(); bothGain.clear(); inducedGain.clear();
+                for (int u : pool[t]) {
+                    if (role[u] == 3) {
+                        both.push_back(G.cost[u]); bothGain.push_back(upperVal(u));
+                    } else {
+                        directOnly.push_back(G.cost[u]); directGain.push_back(upperVal(u));
+                    }
+                }
+                for (int u : l2pool[t])
+                    if (role[u] == 2) {
+                        inducedOnly.push_back(G.cost[u]); inducedGain.push_back(upperVal(u));
+                    }
+                for (int u : pool[t]) role[u] = 0;
+                for (int u : l2pool[t]) role[u] = 0;
+
+                int directCount = (int)directOnly.size();
+                int bothCount = (int)both.size();
+                int inducedCount = (int)inducedOnly.size();
+                auto makePrefix = [](vector<double>& a, int k, bool descending) {
+                    k = min(k, (int)a.size());
+                    if (k <= 0) { a.clear(); return; }
+                    if (descending)
+                        partial_sort(a.begin(), a.begin() + k, a.end(), greater<double>());
+                    else
+                        partial_sort(a.begin(), a.begin() + k, a.end());
+                    a.resize(k);
+                    for (int i = 1; i < k; i++) a[i] += a[i - 1];
+                };
+                makePrefix(directOnly, nA, false);
+                makePrefix(both, nA + mA, false);
+                makePrefix(inducedOnly, mA, false);
+                makePrefix(directGain, nA, true);
+                makePrefix(bothGain, nA + mA, true);
+                makePrefix(inducedGain, mA, true);
+                auto pref = [](const vector<double>& a, int k) {
+                    return k == 0 ? 0.0 : a[k - 1];
+                };
+                double bestJoint = 1e300;
+                double maxJointGain = 0;
+                int rLo = max(0, nA - directCount);
+                int rHi = min(nA, bothCount);
+                for (int r = rLo; r <= rHi; r++) {
+                    int sLo = max(0, mA - inducedCount);
+                    int sHi = min(mA, bothCount - r);
+                    for (int s = sLo; s <= sHi; s++) {
+                        double z = pref(directOnly, nA - r) +
+                                   pref(both, r + s) +
+                                   pref(inducedOnly, mA - s);
+                        double g = pref(directGain, nA - r) +
+                                   pref(bothGain, r + s) +
+                                   pref(inducedGain, mA - s);
+                        bestJoint = min(bestJoint, z);
+                        maxJointGain = max(maxJointGain, g);
+                    }
+                }
+                if (bestJoint >= 1e299) feasible = false;
+                else { need2 += bestJoint; resCredit += maxJointGain; }
+            }
+
+            if (!feasible || !fits((double)cIn + max(need1, need2))) {
+                for (int u : touched) cntW[u] = 0;
+                resNeed = 0; resCredit = 0;
+                return false;
+            }
+            resNeed = need2;
         }
         for (int u : touched) cntW[u] = 0;
-        if (!feasible || !fits((double)cIn + max(need1, need2))) {
-            resNeed = 0; resCredit = 0; return false;
-        }
-        resNeed = need2;
-        return true;
+        return feasible;
     }
     // ---- B2: budget-priced covering knapsack -------------------------------
     // Relaxation over the ball's twin-class units:
