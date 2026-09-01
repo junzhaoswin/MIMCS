@@ -13,7 +13,7 @@ The public solver exposes two query-conditioned exact algorithms:
 - `advanced_full`: **MIMC-B&B**, equipped with completion-cost reduction,
   completion-aware influence bounding, and deficit-guided branching.
 
-Author and citation information will be added later.
+The technical report `MIMCS_TechnicalReport.pdf` contains the paper with the full proofs. Author and citation information will be added later.
 
 ## Contents
 
@@ -21,11 +21,12 @@ Author and citation information will be added later.
 CMakeLists.txt          C++17 build configuration
 src/mimc_lift.cpp      experimental implementation
 experiments/configs/   95 experimental configurations for five datasets
+datasets/              solver-format graphs of the five HINs and the case-study network (gzip)
+MIMCS_TechnicalReport.pdf   technical report with the full proofs
 README.md               build, input, and execution instructions
 ```
 
-No graph dataset, concrete query vertex, experimental output, plotting code,
-or cluster script is included in this version.
+The graph datasets are included under `datasets/` (see `datasets/README.md`); concrete query vertices, experimental outputs, plotting code, and cluster scripts are not included in this version.
 
 ## Build
 
@@ -116,6 +117,4 @@ reported optimum with respect to the fixed sampled RR collection. If the time
 limit is reached first, the program reports the best feasible incumbent found
 so far, a certified upper bound, and a gap; that return is not a proved optimum.
 
-The graph inputs and query vertices are intentionally not distributed in this
-minimal code release. Users must supply normalized graphs whose zero-based
-type and vertex numbering matches the selected configuration.
+The graph inputs are provided in `datasets/` (decompress them first); their zero-based type and vertex numbering matches the released configurations. Query vertices are not distributed in this version.
